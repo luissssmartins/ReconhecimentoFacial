@@ -1,3 +1,5 @@
+import time
+
 from cv2 import (imread, cvtColor, COLOR_BGR2RGB, VideoCapture, resize, rectangle, putText, FONT_HERSHEY_SIMPLEX,
                  imshow, waitKey, destroyAllWindows, namedWindow, imwrite)
 from face_recognition import (face_encodings, face_locations, compare_faces, face_distance)
@@ -91,6 +93,9 @@ class FaceRecognitionSystem:
                 putText(img, nome, (left, top - 10), FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
             else:
                 print("Rosto desconhecido salvo!")
+
+                time.sleep(10)
+
                 unique_id = self.generate_unique_id()
                 new_entry = pd.DataFrame({"ID": [unique_id], "Timestamp": [strftime("%Y-%m-%d %H:%M:%S")]})
                 self.unknown_faces_data = pd.concat([self.unknown_faces_data, new_entry], ignore_index=True)
