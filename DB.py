@@ -1,3 +1,5 @@
+import os
+
 from cv2 import (imread, cvtColor, COLOR_BGR2RGB, VideoCapture, resize, rectangle, putText, FONT_HERSHEY_SIMPLEX,
                  imshow, waitKey, destroyAllWindows, namedWindow, imwrite)
 from face_recognition import (face_encodings, face_locations, compare_faces, face_distance)
@@ -11,24 +13,60 @@ from random import choice
 class DB:
     """Classe responsável por cuidar do acesso ao banco de dados com as imagens"""
     directory = 'DB'
+    cache_directory = 'CACHE'
 
     def __init__(self) -> None:
         print("Iniciando o sistema... \nCarregando o Banco de Dados... ")
-        self.images, self.names = [], []
+        self.images, self.names, self.unknown_images = [], [], []
         self.get_img_and_name_general()
         print("Banco carregado com sucesso... \nIniciando o encoding das imagens...")
-        self.encode_list = []
+        self.encode_list, self.encode_unknown = [], []
+
         self.find_encodings()
+        self.find_unknown_encodings()
+
         print("Encoding terminado com sucesso... \nSistema iniciado com sucesso")
 
     def get_img_and_name_general(self) -> None:
+
         for cl in listdir(DB.directory):
             self.images.append(imread(f'{DB.directory}/{cl}'))
             self.names.append(path.splitext(cl)[0])
 
+    def get_img_unknowns(self):
+
+        for x in listdir(DB.cache_directory):
+            self.unknown_images.append(imread(f'{DB.cache_directory}/{x}'))
+
+
+    @staticmethod
+    def grant_access(name, known_face) -> None:
+
+        makedirs('ACCESS', exist_ok=True)
+
+        imwrite(f"ACCESS/{name}.jpg", known_face)
+
+    @staticmethod
+    def unknown_grant_access(name, known_face) -> None:
+
+        makedirs('RD', exist_ok=True)
+
+        imwrite(f"RD/{name}.jpg", known_face)
+
+    @staticmethod
+    def cache_access(known_face) -> None:
+
+        makedirs('CACHE', exist_ok=True)
+
+        imwrite("CACHE/cache.jpg", known_face)
+
     def find_encodings(self) -> None:
         with Pool(processes=None) as pool:
             self.encode_list = pool.map(self.encode_face, self.images)
+
+    def find_unknown_encodings(self) -> None:
+        with Pool(processes=None) as pool:
+            self.encode_list = pool.map(self.encode_face, self.unknown_images)
 
     @staticmethod
     def encode_face(image) -> None:
@@ -78,22 +116,42 @@ class FaceRecognitionSystem:
 
             if matches[match]:
                 nome = self.dataBase.names[match].upper()
+
                 access_granted = True  # Acesso liberado se houver uma correspondência
+
+                known_face = img[top:bottom, left:right] # Passando rostos conhecidos
+
+                self.dataBase.grant_access(nome, known_face) # Salvando na pasta de rostos conhecidos que entraram
 
             if distancia[match] <= self.limite_distancia:
                 rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)
                 putText(img, nome, (left, top - 10), FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
             else:
-                print("Rosto desconhecido salvo!")
-                unique_id = self.generate_unique_id()
-                unknown_face = img[top:bottom, left:right]
+
+                print("Rosto desconhecido encontrado!")
+
+                matches_unknown = compare_faces(self.dataBase.encode_unknown, encodeFace, self.limite_distancia)
+                distance_unknown = face_distance(self.dataBase.encode_unknown, encodeFace)
+                match_unknown = argmin(distance_unknown)
+
+                if not matches_unknown[match_unknown]:
+
+                    unique_id = self.generate_unique_id()
+                    unknown_face = img[top:bottom, left:right]
+
+                    self.dataBase.unknown_grant_access(unique_id, unknown_face)
+                    self.dataBase.cache_access(unknown_face)
+
                 rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
-                makedirs("RD", exist_ok=True)
-                imwrite(f"RD/{unique_id}.jpg", unknown_face)
+
+
+                # time.sleep(10)
 
         return access_granted, nome
 
     def run(self):
+
         while True:
             success, img = self.cap.read()
 
